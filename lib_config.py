@@ -13,10 +13,10 @@ def read_configuration(config_file:str) -> dict:
     Returns dict with configuration settings
     '''
     # Default config values
-    
     bcr_config = {
+        'watchdog_path' :None,
         'dept_name': 'Vide',
-        'log_file': None,
+        'logging_level': 'INFO',
         'label_template_file': 'label_template.txt',
         'label_data_file': 'vide.txt',
         'label_number_of_copies': 1,
@@ -36,11 +36,11 @@ def read_configuration(config_file:str) -> dict:
                         converters={'list': lambda x: [int(i.strip()) for i in x.split(',')],
                                     'list_s' : lambda x: [i.strip() for i in x.split(',')]})
     config.read(config_file)
-    
-    #config = default_config
+
     #Get values from ini file line by line to catch errors in config file
     commands = (
-        "bcr_config['log_file'] = config.get('LOGGING','log_file')",
+        "bcr_config['watchdog_path'] = config.get('WATCHDOG','watchdog_path')",
+        "bcr_config['logging_level'] = config.get('LOGGING','logging_level')",
         "bcr_config['dept_name'] = config.get('INFO','dept_name')",
         "bcr_config['label_template_file'] = config.get('LABEL','label_template_file')",
         "bcr_config['label_data_file'] = config.get('LABEL','label_data_file')",
@@ -61,11 +61,11 @@ def read_configuration(config_file:str) -> dict:
     return(bcr_config)
 
 def main():
-    config_file = 'bcp.ini'
+    config_file = 'bc.ini'
     run_directory= os.path.dirname(os.path.realpath(__file__))
     full_path = '{}/{}'.format(run_directory,config_file)
     c = read_configuration(full_path)
-    c=print(c)
+    print(c)
 
 if __name__ == '__main__':
     main()

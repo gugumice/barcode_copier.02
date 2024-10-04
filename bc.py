@@ -20,12 +20,14 @@ label_tests = None
 bc_reader_reset = None
 #Watchdog object
 wd = None
-#
 barcode_reader = None
+
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
     
-def split_to_substrings(codes_list, max_length=30):
+def split_to_substrings(codes_list, max_length=30)-> list:
     '''
     Ensure, that multiple test ID's fit on barcode labels
+    Returns substrings shorter than max_length
     '''
     substrings = []
     current_substring = []
@@ -48,7 +50,10 @@ def split_to_substrings(codes_list, max_length=30):
         substrings.append(','.join(current_substring))
     return substrings
 
-def print_labels(zpl_text, printer_make='Zebra'):
+def print_labels(zpl_text, printer_make='Zebra')->None:
+    '''
+    Sends labels to CUPS default printer
+    '''
     global conn
     temp_file = tempfile.NamedTemporaryFile(prefix='kio_',suffix='.pdf', delete=False)
     with open(temp_file.name, 'w') as tf:
@@ -57,7 +62,7 @@ def print_labels(zpl_text, printer_make='Zebra'):
     print_job_id = conn.printFile(printer = label_printer, filename = temp_file.name,title = 'Report',options ={'print-color-mode': 'monochrome'})
     logging.info('Job: {} sent to printer'.format(print_job_id))
 
-def print_select_barcodes_sheet(label_data_file:str, select_template_file:str) -> str:
+def make_select_sheet(label_data_file:str, select_template_file:str) -> str:
     '''
     Makes zpl code for printing labels for selecting copy mode
     '''
@@ -82,9 +87,9 @@ def print_select_barcodes_sheet(label_data_file:str, select_template_file:str) -
                                                                  label_content2=label_content[2],
                                                                  label_barcode = k,
                                                                  label_copies = 1)])
-    print_labels(zpl_text = zpl_text)
+        return(zpl_text)
 
-def print_copy_of_bc(barcode:str, label_tests = None, label_template_file = None):
+def make_labels(barcode:str, label_tests = None, label_template_file = None)->str:
     '''
     Prints a copy of barcode
     '''
@@ -93,26 +98,28 @@ def print_copy_of_bc(barcode:str, label_tests = None, label_template_file = None
         t = f.read()
     template = Template(t)
     barcode = barcode.replace('#','')
-    label_content = [time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())]
+    time_created = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())
     if label_tests is None:
+        #No select code scanned so making strait copy
         label_dept_name = config['dept_name']
+        zpl_text = template.safe_substitute(label_content0=time_created,
+                                    label_content1='CC',
+                                    label_content2='',
+                                    label_barcode = barcode,
+                                    label_dept_name = label_dept_name,
+                                    label_copies = config['label_number_of_copies'])
     else:
-        label_dept_name = label_tests[0]
-        label_content.append(label_tests[1])
-    label_content = split_to_substrings(label_content,28)
-    while len(label_content) < 3:
-        label_content.append('')
-    
-    zpl_text = template.safe_substitute(label_content0=label_content[0],
-                                        label_content1=label_content[1],
-                                        label_content2=label_content[2],
-                                        label_barcode = barcode,
-                                        label_dept_name = label_dept_name,
-                                        label_copies = config['label_number_of_copies'])
-    print_labels(zpl_text = zpl_text)
-    #print(zpl_text)
+        zpl_text = ''
+        for test in label_tests[1]:
+            zpl_text = zpl_text + '\n' + template.safe_substitute(label_content0=time_created,
+                                                label_content1=label_tests[0],
+                                                label_content2='',
+                                                label_barcode = barcode,
+                                                label_dept_name = test,
+                                                label_copies = config['label_number_of_copies'])
+    return(zpl_text)
 
-def has_label_tests(barcode, label_data_file:str):
+def has_label_tests(barcode:str, label_data_file:str)->list:
     '''
     If label for selecting tests, get tests
     '''
@@ -122,20 +129,22 @@ def has_label_tests(barcode, label_data_file:str):
     if not barcode in label_data.keys():
         logging.info("Invalid barcode: {}".format(barcode))
         return(None)
-    logging.info('Mode set to: {}'.format(barcode))
-    return([barcode, ','.join(label_data[barcode])])
+    logging.debug('Mode set to: {}'.format(barcode))
+    return([barcode, label_data[barcode]])
 
-def bc_callback(barcode):
+def bc_callback(barcode:str)->None:
     '''
     Calback called after barcode is scanned
     '''
     global config, conn, label_tests, bc_reader_reset
     logging.debug(f"Received barcode: {barcode}")
     if barcode == '#LAPA':
-        print_select_barcodes_sheet('{}/{}'.format(RUN_DIR,config['label_data_file']),'{}/{}'.format(RUN_DIR,config['label_template_file']))
+        zpl_text = make_select_sheet('{}/{}'.format(RUN_DIR,config['label_data_file']),'{}/{}'.format(RUN_DIR,config['label_template_file']))
+        print_labels(zpl_text = zpl_text)
         label_tests = None
     elif re.findall(config['barcode_regex'],barcode):
-        print_copy_of_bc(barcode, label_tests=label_tests, label_template_file = '{}/{}'.format(RUN_DIR,config['label_template_file']))
+        zpl_text = make_labels(barcode, label_tests=label_tests, label_template_file = '{}/{}'.format(RUN_DIR,config['label_template_file']))
+        print_labels(zpl_text = zpl_text)
         label_tests = None
     else:
         label_tests = has_label_tests(barcode, '{}/{}'.format(RUN_DIR,config['label_data_file']))
@@ -156,24 +165,30 @@ def main():
     args = parser.parse_args()
     # Read from config file
     config = read_configuration(args.config)
-    if config["log_file"] is None:
-        logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
+    #set logging level from config
+    if config['logging_level']:
+        logger = logging.getLogger(__name__)
+        logger.setLevel(config['logging_level'])
+    #Set watchdog
+    if config['watchdog_path']:
+        try:
+            wd = open(config['watchdog_path'], 'w')
+            logging.info("Watchdog enabled on {}".format(config['watchdog_path']))
+        except Exception as e:
+            logging.error(e)
     else:
-        logging.basicConfig(
-            format="%(asctime)s - %(message)s",
-            filename=config["log_file"],
-            filemode="w",
-            level=logging.INFO,
-        )
+        logging.info("Watchdog disabled")
+    #Check & set printer 
     conn = cups.Connection()
     setup_printer(conn=conn, include_schemes = config['include_schemes'], driver_list = config['driver_list'])
+    #init barcode reader object
     barcode_reader = BarcodeReader(port=config['bc_port'],
                                    timeout=config['bc_reader_timeout'],
                                    callback=bc_callback,
                                    bounce=config['bc_reader_debounce'])
     while not barcode_reader.running:
         threading.Event().wait(1)
-        logging.info('Starting reder')
+        logging.info('Starting reader')
         barcode_reader.start()
     while barcode_reader.running:
         #If bc_reader_reset timer exceeded, set to strait copy mode
@@ -193,6 +208,7 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         barcode_reader.stop()
+        #Stop watchdog if enabled
         if wd is not None:
             print('V',file = wd, flush = True)
         print("\nExiting")

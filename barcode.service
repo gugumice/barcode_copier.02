@@ -4,7 +4,6 @@ Description=Barcode copier
 [Service]
 #Type=idle
 Environment="SCRIPT_ARGS=-c /opt/bc/bc.ini"
-#ExecStart="/opt/bc/bc.py" $SCRIPT_ARGS
 ExecStart=/opt/bc/bin/python /opt/bc/bc.py
 WorkingDirectory=/opt/bc/
 StandardOutput=inherit
