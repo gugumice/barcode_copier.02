@@ -197,10 +197,10 @@ def main():
             label_tests = None
             logging.info('Mode set to: copy')
             #Pat watchdog
-            if wd is not None: print('1',file = wd, flush = True)
+        if wd: print('1',file = wd, flush = True)
         threading.Event().wait(.5)
     #Stop watchdog
-    if wd is not None: print('V',file = wd, flush = True)
+    if wd: print('V',file = wd, flush = True)
     barcode_reader.stop()
 
 if __name__ == '__main__':
