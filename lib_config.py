@@ -6,7 +6,7 @@ import os
 def read_configuration(config_file:str) -> dict:
     '''
     Reads configuration file, sets default values if missing
-    
+ 
     Args:
         configuration file
 
@@ -21,14 +21,14 @@ def read_configuration(config_file:str) -> dict:
         'label_data_file': 'vide.txt',
         'label_number_of_copies': 1,
         'bc_port': '/dev/ttyACM0',
-        'bc_reader_timeout': 1,                                                                                                
+        'bc_reader_timeout': 1,
         'bc_reader_debounce': 1.5,
         'bc_reader_reset': 60,
         'include_schemes': ['usb'],
         'driver_list': {'Zebra':'Raw'},
         'barcode_regex': '^#\d{7,9}$',
         }
-    
+
     if not os.path.isfile(config_file):
         logging.critical("Config file {} does not exist!".format(config_file))
         return(None)

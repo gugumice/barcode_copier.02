@@ -23,7 +23,7 @@ wd = None
 barcode_reader = None
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.DEBUG)
-    
+
 def split_to_substrings(codes_list, max_length=30)-> list:
     '''
     Ensure, that multiple test ID's fit on barcode labels
@@ -35,7 +35,7 @@ def split_to_substrings(codes_list, max_length=30)-> list:
     for code in codes_list:
         # Calculate the length of the current substring if we add this code (plus a comma if not the first code)
         new_length = current_length + len(code) + (1 if current_length > 0 else 0)
-        
+
         # If adding this code exceeds the max length, finalize the current substring
         if new_length > max_length:
             substrings.append(','.join(current_substring))
@@ -44,7 +44,6 @@ def split_to_substrings(codes_list, max_length=30)-> list:
         else:
             current_substring.append(code)
             current_length = new_length
-    
     # Add the last accumulated substring
     if current_substring:
         substrings.append(','.join(current_substring))
@@ -68,26 +67,23 @@ def make_select_sheet(label_data_file:str, select_template_file:str) -> str:
     '''
     label_data ={}
     zpl_text = ''
-    
     with open(label_data_file) as f:
         label_data = json.loads(f.read())
-    
     with open(select_template_file) as f:
         t = f.read()
     template = Template(t)
-
     for k,v in label_data.items():
-        #label_content = ','.join(v)
-
+        label_content = ','.join(v)
         label_content = split_to_substrings(v,28)
         while len(label_content) < 3:
             label_content.append('')
         zpl_text = '\n'.join([zpl_text, template.safe_substitute(label_content0=label_content[0],
                                                                  label_content1=label_content[1],
                                                                  label_content2=label_content[2],
+                                                                 label_dept_name = config['dept_name'],
                                                                  label_barcode = k,
                                                                  label_copies = 1)])
-        return(zpl_text)
+    return(zpl_text)
 
 def make_labels(barcode:str, label_tests = None, label_template_file = None)->str:
     '''
@@ -140,6 +136,7 @@ def bc_callback(barcode:str)->None:
     logging.debug(f"Received barcode: {barcode}")
     if barcode == '#LAPA':
         zpl_text = make_select_sheet('{}/{}'.format(RUN_DIR,config['label_data_file']),'{}/{}'.format(RUN_DIR,config['label_template_file']))
+        #print(zpl_text)
         print_labels(zpl_text = zpl_text)
         label_tests = None
     elif re.findall(config['barcode_regex'],barcode):
@@ -148,7 +145,7 @@ def bc_callback(barcode:str)->None:
         label_tests = None
     else:
         label_tests = has_label_tests(barcode, '{}/{}'.format(RUN_DIR,config['label_data_file']))
-        bc_reader_reset = time.time()    
+        bc_reader_reset = time.time()
 
 def main():
     global config, conn, bc_reader_reset, wd, barcode_reader
@@ -197,10 +194,10 @@ def main():
             label_tests = None
             logging.info('Mode set to: copy')
             #Pat watchdog
-        if wd: print('1',file = wd, flush = True)
+        if wd is not None: print('1',file = wd, flush = True)
         threading.Event().wait(.5)
     #Stop watchdog
-    if wd: print('V',file = wd, flush = True)
+    if wd is not None: print('V',file = wd, flush = True)
     barcode_reader.stop()
 
 if __name__ == '__main__':
